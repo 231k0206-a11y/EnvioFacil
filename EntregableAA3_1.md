@@ -9,7 +9,7 @@
   * Miguel Alejandro Puc Nahuat  
   * Ricardo José Acosta Alcocer  
   * Gabriela Che Sansores  
-* **Stack Tecnológico Elegido:** Node.js / TypeScript / Express  
+* **Stack Tecnológico Elegido:** Node.js / TypeScript 
 * **Asistente(s) de IA Utilizados:** Gemini 3 Flash  
 * **Historia(s) de Usuario Atendida(s):**  Actualización y validación de estados de envíos y reglas de cancelación.
 

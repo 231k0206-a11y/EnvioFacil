@@ -28,10 +28,6 @@ A continuación se describen los errores arquitectónicos, de desacoplamiento o 
 
 1. **Error detectado:** La IA mezcló librerías HTTP/ORM dentro del archivo de la Entidad de Dominio o acopló respuestas HTTP directamente en el caso de uso.
 
-   * **Solución aplicada:** Se eliminó la dependencia externa de la capa de Dominio (`src/domain`), dejando la entidad `Envio` pura con sus reglas de negocio, y se movió el contrato de persistencia a una interfaz en la capa de Aplicación (`src/aplication`).  
-2. **Error detectado:** Desajuste en el contrato de datos (DTO) entre la capa de Infraestructura y el Caso de Uso (`EnvioController` extraía `estado_orden` del `req.body` en lugar de `nuevo_estado`), además de llaves duplicadas en `ActualizarEstadoEnvioUseCase.ts` que impedían capturar la regla de negocio `409 Conflict` cuando el paquete ya estaba en ruta (`OUT_FOR_DELIVERY`).
-
-   * **Solución aplicada:** Se estandarizó la desestructuración del cuerpo de la petición en `EnvioController.ts` para leer `nuevo_estado`, `usuario_id` y `motivo_cancelacion`, y se refactorizó el bloque condicional de `ActualizarEstadoEnvioUseCase.ts` para validar primero el estado `'OUT_FOR_DELIVERY'` antes de permitir la cancelación, mapeando las excepciones del dominio a los códigos HTTP `409`, `400` y `404` en el controlador.
 
 ---
 

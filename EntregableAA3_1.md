@@ -1,141 +1,169 @@
-## 1. Resumen Ejecutivo y Arquitectura
+# Reporte de Arquitectura y Construcción de Software \- EnvioFacil
 
-El presente documento detalla la implementación y validación de endpoints de la API REST para el módulo de actualización de estados de envíos de la plataforma EnvioFacil. 
+## 1\. Datos del equipo
 
-El software fue construido aplicando Arquitectura Limpia en Node.js con TypeScript con los siguientes elementos:
+&nbsp;
 
-Capa de Dominio : Define las entidades core como `Envio`, las reglas de negocio estrictas para transiciones de estado y los tipos del dominio (`EstadoEnvio`: `'RECEIVED'`, `'PREPARING'`, `'OUT_FOR_DELIVERY'`, `'DELIVERED'`, `'CANCELLED'`).
+* **Integrantes:**  
+  * Eduardo Hernández Sanabria&nbsp;  
+  * Miguel Alejandro Puc Nahuat  
+  * Ricardo José Acosta Alcocer  
+  * Gabriela Che Sansores  
+* **Stack Tecnológico Elegido:** Node.js / TypeScript / Express  
+* **Asistente(s) de IA Utilizados:** Gemini 3 Flash  
+* **Historia(s) de Usuario Atendida(s):**  Actualización y validación de estados de envíos y reglas de cancelación.
 
-Capa de Aplicación (`src/aplication`): Alberga los casos de uso (`ActualizarEstadoEnvioUseCase`), orquestando la lógica de negocio y aplicando las validaciones requeridas antes de llamar a la capa de persistencia.
+---
 
-Capa de Infraestructura (`src/infraestructura`): Implementa los controladores Express (`EnvioController`), el mapeo de errores del dominio a respuestas HTTP estandarizadas y el repositorio de persistencia temporal en memoria (`InMemoryEnvioRepository`).
+## 2\. Bitácora de prompts
 
+### Prompt Principal de Contextualización
 
+> **Copia fiel del prompt enviado a la IA:**  
+> *"Actúa como un Arquitecto de Software Senior. A partir del siguiente contrato OpenAPI YAML y los escenarios Gherkin para la plataforma EnvioFacil, genera la estructura de carpetas y clases aplicando Arquitectura Limpia (Clean Architecture). Separa estrictamente Dominio, Aplicación e Infraestructura, implementando el endpoint PATCH para actualizar el estado de un envío y manejando los códigos HTTP 200, 400, 404 y 409."*
 
-## 2. Definición del Dominio y Reglas de Negocio
+### Auditoría
 
-La entidad `Envio` administra el ciclo de vida del paquete y restringe el comportamiento del sistema bajo las siguientes directrices:
+A continuación se describen los errores arquitectónicos, de desacoplamiento o de implementación detectados durante la generación asistida y cómo fueron corregidos:
 
+1. **Error detectado:** La IA mezcló librerías HTTP/ORM dentro del archivo de la Entidad de Dominio o acopló respuestas HTTP directamente en el caso de uso.
 
-1. Validación de Cancelaciones (`400 Bad Request`): La cancelación de una orden exige obligatoriamente los campos `usuario_id` y `motivo_cancelacion`.
+   * **Solución aplicada:** Se eliminó la dependencia externa de la capa de Dominio (`src/domain`), dejando la entidad `Envio` pura con sus reglas de negocio, y se movió el contrato de persistencia a una interfaz en la capa de Aplicación (`src/aplication`).  
+2. **Error detectado:** Desajuste en el contrato de datos (DTO) entre la capa de Infraestructura y el Caso de Uso (`EnvioController` extraía `estado_orden` del `req.body` en lugar de `nuevo_estado`), además de llaves duplicadas en `ActualizarEstadoEnvioUseCase.ts` que impedían capturar la regla de negocio `409 Conflict` cuando el paquete ya estaba en ruta (`OUT_FOR_DELIVERY`).
 
-2. Regla de Conflicto de Ruta (`409 Conflict`): Un paquete en estado `'OUT_FOR_DELIVERY'` (en ruta) no puede ser cancelado. Intentar esta operación genera una excepción de regla de negocio que se traduce en un código de estado `409`.
+   * **Solución aplicada:** Se estandarizó la desestructuración del cuerpo de la petición en `EnvioController.ts` para leer `nuevo_estado`, `usuario_id` y `motivo_cancelacion`, y se refactorizó el bloque condicional de `ActualizarEstadoEnvioUseCase.ts` para validar primero el estado `'OUT_FOR_DELIVERY'` antes de permitir la cancelación, mapeando las excepciones del dominio a los códigos HTTP `409`, `400` y `404` en el controlador.
 
-3. Recuperación de Entidades (`404 Not Found`): Peticiones sobre identificadores inexistentes en la base de datos o en memoria devuelven la falla correspondiente.
+---
 
+## 3\. Estructura del Repositorio
 
+```
+src/
+├── domain/                  # Entidades puras (Envio) y reglas de negocio (EstadoEnvio)
+├── aplication/              # Casos de Uso (ActualizarEstadoEnvioUseCase) y Puertos (Interfaces)
+└── infraestructura/         # Controladores HTTP (EnvioController) y Repositorio en Memoria (InMemoryEnvioRepository)
+```
 
-## 3. Matriz de Evidencias de Pruebas API en Thunder Client
+---
 
+## 4\. Matriz de Evidencias de Pruebas API (Thunder Client)
 
-### 3.1. Caso Exitoso: Actualización de Estado (200 OK)
+A continuación se documentan las ejecuciones de prueba realizadas vía **Thunder Client** para validar el comportamiento del endpoint `PATCH /api/v1/envios/{id}/estado` y sus códigos de respuesta HTTP.
+
+### 4.1. Caso Exitoso: Actualización de Estado (`200 OK`)
 
 Se actualiza el estado de una orden existente cumpliendo el flujo habitual del ciclo de vida.
 
-Método HTTP: `PATCH`
-**URL**: `http://localhost:3000/api/v1/envios/EF-3001/estado`
-Headers: `Content-Type: application/json`
+* **Método HTTP:** `PATCH`  
+* **URL:** `http://localhost:3000/api/v1/envios/EF-3001/estado`  
+* **Headers:** `Content-Type: application/json`
 
-Cuerpo de la Petición (Request Body):
+**Cuerpo de la Petición (Request Body):**
 
+```json
 {
   "nuevo_estado": "DELIVERED",
   "usuario_id": 101
 }
+```
 
+**Respuesta del Servidor (Response Body):**
 
-Respuesta del Servidor (Response Body):
+```json
 {
   "mensaje": "Estado actualizado con éxito",
   "orden_id": "EF-3001"
 }
+```
 
-
- Código de Estado HTTP: `200 OK`
+* **Código de Estado HTTP:** `200 OK`
 
 ---
 
-### 3.2. Caso Regla de Negocio: Intento de Cancelación en Ruta (409 Conflict)
+### 4.2. Caso Regla de Negocio: Intento de Cancelación en Ruta (`409 Conflict`)
 
 Se intenta cancelar la orden `EF-3002` que se encuentra previamente en estado `'OUT_FOR_DELIVERY'`. El dominio bloquea la transición.
 
-Método HTTP: `PATCH`
-URL: `http://localhost:3000/api/v1/envios/EF-3002/estado`
-Headers: `Content-Type: application/json`
+* **Método HTTP:** `PATCH`  
+* **URL:** `http://localhost:3000/api/v1/envios/EF-3002/estado`  
+* **Headers:** `Content-Type: application/json`
 
-Cuerpo de la Petición (Request Body):
+**Cuerpo de la Petición (Request Body):**
 
+```json
 {
   "nuevo_estado": "CANCELLED",
   "usuario_id": 102,
   "motivo_cancelacion": "Cliente ausente"
 }
+```
 
+**Respuesta del Servidor (Response Body):**
 
-Respuesta del Servidor (Response Body):
-
+```json
 {
   "codigoError": "CONFLICT_SHIPPING_IN_ROUTE",
   "mensaje": "No se puede cancelar: el envío ya está en ruta"
 }
+```
 
-Código de Estado HTTP**: `409 Conflict`
+* **Código de Estado HTTP:** `409 Conflict`
 
+---
 
-
-### 3.3. Caso Datos Incompletos: Solicitud Mal Formada (400 Bad Request)
+### 4.3. Caso Datos Incompletos: Solicitud Mal Formada (`400 Bad Request`)
 
 Se solicita la cancelación de un paquete sin proporcionar el `usuario_id` ni el `motivo_cancelacion` requeridos.
 
-Método HTTP: `PATCH`
-URL: `http://localhost:3000/api/v1/envios/EF-3001/estado`
-Headers: `Content-Type: application/json`
+* **Método HTTP:** `PATCH`  
+* **URL:** `http://localhost:3000/api/v1/envios/EF-3001/estado`  
+* **Headers:** `Content-Type: application/json`
 
-Cuerpo de la Petición (Request Body):
+**Cuerpo de la Petición (Request Body):**
 
+```json
 {
   "nuevo_estado": "CANCELLED"
 }
+```
 
+**Respuesta del Servidor (Response Body):**
 
-Respuesta del Servidor (Response Body):
-
+```json
 {
   "codigoError": "BAD_REQUEST",
   "mensaje": "usuario_id y motivo_cancelacion son obligatorios para cancelar"
 }
+```
 
-Código de Estado HTTP: `400 Bad Request`
+* **Código de Estado HTTP:** `400 Bad Request`
 
+---
 
-
-### 3.4. Caso Recursos No Encontrados (404 Not Found)
+### 4.4. Caso Recursos No Encontrados (`404 Not Found`)
 
 Se realiza una solicitud especificando un identificador de paquete inexistente en el sistema.
 
-Método HTTP: `PATCH`
-URL: `http://localhost:3000/api/v1/envios/EF-9999/estado`
-Headers: `Content-Type: application/json`
+* **Método HTTP:** `PATCH`  
+* **URL:** `http://localhost:3000/api/v1/envios/EF-9999/estado`  
+* **Headers:** `Content-Type: application/json`
 
-Cuerpo de la Petición (Request Body):
+**Cuerpo de la Petición (Request Body):**
 
+```json
 {
   "nuevo_estado": "DELIVERED",
   "usuario_id": 101
 }
+```
 
+**Respuesta del Servidor (Response Body):**
 
-Respuesta del Servidor (Response Body):
-
+```json
 {
   "codigoError": "NOT_FOUND",
   "mensaje": "Orden no encontrada"
 }
+```
 
-Código de Estado HTTP: `404 Not Found`
-
-
-
-## 4. Conclusiones
-
-La estructuración del proyecto mediante Arquitectura limpia permitió aislar completamente las reglas del negocio de los detalles de transporte de EnvioFacil. Las pruebas integradas mediante Thunder Client ratifican que los códigos HTTP emitidos reflejan adecuadamente la semántica de los resultados en la capa del dominio.
+* **Código de Estado HTTP:** `404 Not Found`

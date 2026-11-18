@@ -17,11 +17,11 @@ Capa de Infraestructura (`src/infraestructura`): Implementa los controladores Ex
 La entidad `Envio` administra el ciclo de vida del paquete y restringe el comportamiento del sistema bajo las siguientes directrices:
 
 
-1. Validación de Cancelaciones (`400 Bad Request`)**: La cancelación de una orden exige obligatoriamente los campos `usuario_id` y `motivo_cancelacion`.
+1. Validación de Cancelaciones (`400 Bad Request`): La cancelación de una orden exige obligatoriamente los campos `usuario_id` y `motivo_cancelacion`.
 
-2. Regla de Conflicto de Ruta (`409 Conflict`)**: Un paquete en estado `'OUT_FOR_DELIVERY'` (en ruta) no puede ser cancelado. Intentar esta operación genera una excepción de regla de negocio que se traduce en un código de estado `409`.
+2. Regla de Conflicto de Ruta (`409 Conflict`): Un paquete en estado `'OUT_FOR_DELIVERY'` (en ruta) no puede ser cancelado. Intentar esta operación genera una excepción de regla de negocio que se traduce en un código de estado `409`.
 
-3. Recuperación de Entidades (`404 Not Found`)**: Peticiones sobre identificadores inexistentes en la base de datos o en memoria devuelven la falla correspondiente.
+3. Recuperación de Entidades (`404 Not Found`): Peticiones sobre identificadores inexistentes en la base de datos o en memoria devuelven la falla correspondiente.
 
 
 
